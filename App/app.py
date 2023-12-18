@@ -9,69 +9,89 @@ from fastapi import (
     status,
     Depends
 )
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 import numpy as np
-from PIL import Image, UnidentifiedImageError
-from predictor import CatsPredictor, FaceDetector
+from PIL import Image
+from predictor import CursoPredictor
+from datetime import datetime as dt
+import time
 
-app = FastAPI(title="Cats classification API")
+processed_image = None
+processed_image_info = None
 
-predictor = CatsPredictor()
-face_detector = FaceDetector()
+app = FastAPI(title="Curso reconocedor")
+
+predictor = CursoPredictor()
+
+#face_detector = FaceDetector()
 
 def get_predictor():
     return predictor
 
-def get_face_detector():
-    return face_detector
 
 def predict_uploadfile(predictor, file):
     img_stream = io.BytesIO(file.file.read())
     if file.content_type.split("/")[0] != "image":
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, 
-            detail="Not an image"
+            detail="No es una imagen"
         )
-    # convertir a una imagen de Pillow
     img_obj = Image.open(img_stream)
-    # crear array de numpy
     img_array = np.array(img_obj)
     return predictor.predict_image(img_array), img_array
 
-@app.post("/predict_cat")
-def predict_cat(
-    file: UploadFile = File(...), 
-    predictor: CatsPredictor = Depends(get_predictor)
-):
-    results, _ = predict_uploadfile(predictor, file)
-    
-    return results
+@app.get("/status")
+def get_status():
+    model_info = {
+        "model_name": "Curso Predictor",
+        "version": "1.0",
+        "status": "en linea",
+        "author": "Pablo Badani"
+    }
+
+    service_info = {
+        "service_name": "Curso reconocedor API",
+        "status": "online"
+    }
+
+    return {
+        "model_info": model_info,
+        "service_info": service_info
+    }
 
 @app.post("/annotate", responses={
     200: {"content": {"image/jpeg": {}}}
 })
 def predict_and_annotate(
     file: UploadFile = File(...), 
-    predictor: CatsPredictor = Depends(get_predictor)
+    predictor: CursoPredictor = Depends(get_predictor)
 ) -> Response:
+    global processed_image
+    global processed_image_info
     results, img = predict_uploadfile(predictor, file)
-    # anotacion
+    processed_image_info = {
+        "file_name": file.filename,
+        "results": results,
+        "current_datetime": dt.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "execution_time": None,
+        "model": "Curso Predictor"
+    }
+    processed_image = img
     new_img = cv2.putText(
         img,
-        results["class"],
+        f"{results['class']} - Confidence: {results['confidence']:.2f}%",
         (10, 60),
         cv2.FONT_HERSHEY_SIMPLEX,
-        2,
+        1,
         (255, 0, 0),
         2,
-        )
-    # new_img = cv2.cvtColor(new_img, cv2.COLOR_BGR2RGB)
+    )
     img_pil = Image.fromarray(new_img)
     image_stream = io.BytesIO()
     img_pil.save(image_stream, format="JPEG")
     image_stream.seek(0)
-    # return {"success": True}
     return Response(content=image_stream.read(), media_type="image/jpeg")
+
 
 if __name__ == "__main__":
     import uvicorn

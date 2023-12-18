@@ -6,13 +6,13 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-MODEL_PATH = "/Users/pepe/dev/upb/topics/ai-topics-2-2023/2.computer_vision_deployment/2.2.training/runs/classify/train12/weights/best.pt"
+#FACE_MODEL_PATH = "/Users/hp/TopicosIA/parcial1TIA/deploy/blaze_face_short_range.tflite"
+MODEL_PATH = "/Users/hp/TopicosIA/tercerparcial-topicosIA/App/best.pt"
 
-class CatsPredictor:
+class CursoPredictor:
     def __init__(self, model_path: str = MODEL_PATH):
         print("Creando predictor...")
         self.model = YOLO(model_path)
-    
     def predict_file(self, file_path: str):
         results = self.model([file_path])
         pred_data = []
@@ -24,10 +24,8 @@ class CatsPredictor:
                 }
             )
         return pred_data
-    
     def predict_image(self, image_array: np.ndarray):
         results = self.model(image_array)[0]
-
         return {
             "class": results.names[results.probs.top1],
             "confidence": results.probs.data[results.probs.top1].item()
@@ -35,3 +33,9 @@ class CatsPredictor:
     
 
 
+if __name__ == "__main__":
+    image_file = "/Users/hp/TopicosIA/parcial1TIA/deploy/gabriel.jpg"
+    img = cv2.cvtColor(cv2.imread(image_file), cv2.COLOR_BGR2RGB)
+    predictor = CursoPredictor()
+    prediction = predictor.predict_image(img)
+    print(prediction)
